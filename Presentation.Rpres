@@ -1,0 +1,112 @@
+Random Forest (almost from scratch)
+========================================================
+author: Lev Williams 
+date: 
+autosize: true
+
+Intent
+========================================================
+Instead of implementing a particular machine learning algorithm as a mostly-black-box, I hoped to develop and implement a particular machine learning algorithm ,Random Forest, from mostly-scratch.
+
+
+The Basics
+========================================================
+A random forest is an ensemble of CARTs (Classification and Regression Tree) where each of the CARTs are generated from a bootstrapped sample of the training data and where the dependent variables arent all simply used for each tree but instead each tree in the ensemble is made generated with randomly selected subsets of the dependent variables. The predicted outputs of each tree in the forest are then averaged. 
+
+
+Implementing an RF in R
+========================================================
+
+1.) Obtain B bootstrap samples of size .632*number_of_rows of training data while also randomly selecting about third of the dependent variables at random and then store them into a list data type.
+2.) Apply your learner(CART) to each of the bootstrapped samples and place each model into the list. This list containing all the different CARTs is essentially your learner.
+3.) Apply the predict function to this list of CARTs to obtain a list of response columns.
+4.) Merge all of these columns in the list into a matrix.
+5.) Apply some function that measures central tendency to each row of the matrix
+
+
+Code for 1.)
+=========================================================
+```{r, eval = FALSE}
+library(parallel)
+ModelBagger <- function(formulastr, trained, learner,B,Tree = FALSE,m = 1000, cores = 1){
+  # Calculate the number of cores
+  no_cores <- cores
+ 
+  # Initiate cluster
+  cl <- makeCluster(no_cores)
+  library(rpart)
+  clusterExport(cl, "rpart")
+
+  DataBoot <- function(data){
+  threshold <- ceiling(.632*nrow(data))
+  samp <- sample(1:nrow(data),threshold, replace = TRUE)
+  return(data[samp,])
+}
+```
+
+
+=========================================================
+```{r,eval = FALSE}
+DataTreeBoot <- function(data,m){
+  threshold <- ceiling(.632*nrow(data))
+  samp <- sample(1:nrow(data),threshold, replace = TRUE)
+  sampcol <- sample(2:ncol(data),m)
+  return(data[samp,-sampcol])
+}
+
+  if((m - 1) > length(2:ncol(trained))){p
+    m - 2 = length(2:ncol(trained))
+  }
+  
+    SubSamper <- function(vect){
+    return(DataBoot(trained))
+  }
+  
+  TreeSamper <- function(vect){
+    return(DataTreeBoot(trained,m))
+  }
+```  
+
+====================================================
+```{r,eval = FALSE}
+  ModelApplier <- function(data){
+    return(learner(formulastr, data))
+  }
+  TreeApplier <- function(data){
+    return(learner(formulastr, data, method = "anova"))
+  }
+  if(Tree == FALSE){
+  BootData <- parLapply(cl,1:B,SubSamper)
+  mlist <- parLappy(cl,BootData,ModelApplier)
+  }
+  else{
+  BootData <- parLapply(cl,1:B,TreeSamper)
+  mlist <- parLapply(cl,BootData,TreeApplier)
+  }
+  stopCluster(cl)
+  return(mlist)
+}
+
+```
+
+Code for Parts 2.), 3.), 4.), and 5.)
+==================================================
+```{r,eval=FALSE}
+BagPredict <- function(bagm,tested,predictionfunc){
+
+  applyfunc <- function(temp){
+      values <- predictionfunc(temp, newdata = tested)
+      return(values)
+  }
+  OutputVecs <- lapply(bagm, applyfunc)
+  OutputM <- do.call(cbind,OutputVecs)
+  #ystar   <- apply(OutputM, 1, trimean)
+  ystar <- rowMeans(OutputM)
+  return(ystar)
+}
+
+```
+
+Conclusion
+==================================================
+My implementation of RF is robust to missing data (since CARTS are), however the RF in the randomForest library is not for some odd reason and it interpolates the missing values. My algorithm with B = 10000 and amount of columns per tree at 20 currently has an MSE of .19943 placing me at 3864th place (which is lower than the median). 
